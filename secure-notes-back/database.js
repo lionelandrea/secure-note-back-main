@@ -7,7 +7,6 @@ email TEXT,
 password TEXT,
 role TEXT
 )`);
-db.run("DELETE FROM users");
 db.run("INSERT INTO users (email, password, role) VALUES ('admin@test.com', 'azerty','admin')");
 
 console.log("Base de données SQLite initialisée avec succès.");

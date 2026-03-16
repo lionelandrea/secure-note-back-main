@@ -1,8 +1,10 @@
 require('dotenv').config();
 
+const helmet = require('helmet');
 const express = require('express');
 const cors = require('cors');
 const app = express();
+app.use(helmet());
 const db = require('./database');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -85,21 +87,14 @@ app.post('/api/auth/login', (req, res) => {
     });
 
 });
-app.get('/api/notes', authMiddleware, (req, res) => {
-    console.log("Utilisateur connecté :", req.user);
+app.get("/api/notes", authMiddleware, (req, res) => {
+  const query = "SELECT * FROM notes";
 
-    res.json([
-        {
-            id: 1,
-            content: "Ceci est une note protégée par JWT",
-            authorId: req.user.id
-        },
-        {
-            id: 2,
-            content: "Seuls les utilisateurs connectés peuvent voir ceci",
-            authorId: req.user.id
-        }
-    ]);
+  db.all(query, [], (err, notes) => {
+    if (err) return res.status(500).json({ error: "Erreur serveur" });
+
+    res.json(notes);
+  });
 });
 function verifyToken(req, res, next) {
     const authHeader = req.headers.authorization;
@@ -135,6 +130,16 @@ app.get('/api/notes', verifyToken, (req, res) => {
         }
     ]);
 });
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: {
+        error: "Trop de tentatives, veuillez réessayer dans 15 minutes"
+    },
+    statusCode: 429
+});
+app.use('/api/auth/login', loginLimiter);
+
 
 const PORT = 3000;
 app.listen(PORT, () => {
