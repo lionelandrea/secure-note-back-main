@@ -6,6 +6,7 @@ const app = express();
 const db = require('./database');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const authMiddleware = require('./middleware/auth');
 
 app.use(cors());
 app.use(express.json());
@@ -83,6 +84,22 @@ app.post('/api/auth/login', (req, res) => {
 
     });
 
+});
+app.get('/api/notes', authMiddleware, (req, res) => {
+    console.log("Utilisateur connecté :", req.user);
+
+    res.json([
+        {
+            id: 1,
+            content: "Ceci est une note protégée par JWT",
+            authorId: req.user.id
+        },
+        {
+            id: 2,
+            content: "Seuls les utilisateurs connectés peuvent voir ceci",
+            authorId: req.user.id
+        }
+    ]);
 });
 function verifyToken(req, res, next) {
     const authHeader = req.headers.authorization;
