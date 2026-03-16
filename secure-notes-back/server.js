@@ -1,46 +1,64 @@
 require('dotenv').config();
 
-const helmet = require('helmet');
+const sanitizeHtml = require('sanitize-html');
 const express = require('express');
 const cors = require('cors');
-const app = express();
-app.use(helmet());
-const db = require('./database');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+
+const app = express();
+const db = require('./database');
 const authMiddleware = require('./middleware/auth');
 
-app.use(cors());
+app.use(helmet());
+app.use(cors({
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+}));
 app.use(express.json());
 
 const saltRounds = 10;
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+
+    standardHeaders: true,
+    legacyHeaders: false,
+
+    handler: (req, res) => {
+        res.status(429).json({
+            error: "Trop de tentatives de connexion. Veuillez patienter 15 minutes avant de réessayer."
+        });
+    }
+});
+
 app.post('/api/auth/register', async (req, res) => {
     const { email, password } = req.body;
-    console.log("Tentative d'inscription pour :", email);
-
-    if (!email || !password) {
-        return res.status(400).json({ error: "Email et mot de passe requis" });
-    }
 
     try {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
         const query = `INSERT INTO users (email, password) VALUES (?, ?)`;
 
-        db.run(query, [email, hashedPassword], function (err) {
+        db.run(query, [email, hashedPassword], function(err) {
             if (err) {
-                console.error("Erreur base de données :", err.message);
                 return res.status(500).json({ error: "Erreur lors de l'inscription" });
             }
 
             res.status(201).json({ message: "Utilisateur créé avec succès" });
         });
     } catch (error) {
-        console.error("Erreur lors du hachage :", error);
         res.status(500).json({ error: "Erreur serveur lors de la création du compte" });
     }
 });
-app.post('/api/auth/login', (req, res) => {
+
+app.post('/api/auth/login', loginLimiter, (req, res) => {
+
     const { email, password } = req.body;
+
     const query = `SELECT * FROM users WHERE email = ?`;
 
     db.get(query, [email], async (err, user) => {
@@ -80,68 +98,41 @@ app.post('/api/auth/login', (req, res) => {
             });
 
         } catch (error) {
-            console.error("Erreur lors de la comparaison :", error);
             res.status(500).json({ error: "Erreur serveur" });
         }
 
     });
 
 });
-app.get("/api/notes", authMiddleware, (req, res) => {
-  const query = "SELECT * FROM notes";
+app.post('/api/notes', authMiddleware, (req, res) => {
 
-  db.all(query, [], (err, notes) => {
-    if (err) return res.status(500).json({ error: "Erreur serveur" });
+    const { content } = req.body;
 
-    res.json(notes);
-  });
-});
-function verifyToken(req, res, next) {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-        return res.status(403).json({ error: "Token manquant" });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(403).json({ error: "Format du token invalide" });
-    }
-
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-        if (err) {
-            return res.status(401).json({ error: "Token invalide ou expiré" });
-        }
-
-        req.user = decoded;
-        next();
+    const cleanContent = sanitizeHtml(content, {
+        allowedTags: [],
+        allowedAttributes: {}
     });
-}
 
-app.get('/api/notes', verifyToken, (req, res) => {
-    console.log("Utilisateur connecté :", req.user);
+    const query = `INSERT INTO notes (content, authorId) VALUES (?, ?)`;
 
-    res.json([
-        {
-            id: 1,
-            content: 'Ceci est une vraie route protégée par JWT !',
-            authorId: req.user.id
+    db.run(query, [cleanContent, req.user.id], function(err) {
+
+        if (err) {
+            return res.status(500).json({ error: "Erreur serveur" });
         }
-    ]);
+
+        res.json({
+            message: "Note ajoutée",
+            id: this.lastID
+        });
+
+    });
+
 });
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: {
-        error: "Trop de tentatives, veuillez réessayer dans 15 minutes"
-    },
-    statusCode: 429
-});
-app.use('/api/auth/login', loginLimiter);
 
 
 const PORT = 3000;
+
 app.listen(PORT, () => {
     console.log(`🚀 Serveur Back-end démarré sur http://localhost:${PORT}`);
 });
