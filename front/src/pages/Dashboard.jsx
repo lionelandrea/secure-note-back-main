@@ -81,9 +81,9 @@ function Dashboard() {
                         <small>Auteur ID : {note.authorId}</small>
                         <br />
 
-                        {user.role === 'admin' && (
+                        {user.role === 'admin' || note.user_id === user.id && (
                             <button onClick={() => handleDelete(note.id)} style={{ color: 'red', marginTop: '10px' }}>
-                                Supprimer (Admin)
+                                Supprimer 
                             </button>
                         )}
                     </div>

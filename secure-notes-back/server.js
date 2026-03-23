@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const db = require('./database');
 const authMiddleware = require('./middleware/auth');
+const isAdmin = require('./middleware/isAdmin');
 
 app.use(helmet());
 app.use(cors({
@@ -41,9 +42,9 @@ app.post('/api/auth/register', async (req, res) => {
 
     try {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
-        const query = `INSERT INTO users (email, password) VALUES (?, ?)`;
+        const query = `INSERT INTO users (email, password, role) VALUES (?, ?, ?)`;
 
-        db.run(query, [email, hashedPassword], function(err) {
+        db.run(query, [email, hashedPassword, 'user'], function(err) {
             if (err) {
                 return res.status(500).json({ error: "Erreur lors de l'inscription" });
             }
@@ -81,7 +82,8 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
 
             const payload = {
                 id: user.id,
-                email: user.email
+                email: user.email,
+                role: user.role
             };
 
             const token = jwt.sign(
@@ -104,31 +106,69 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     });
 
 });
-app.post('/api/notes', authMiddleware, (req, res) => {
+app.get("/api/notes", authMiddleware, (req, res) => {
+  const query = "SELECT * FROM notes";
 
-    const { content } = req.body;
+  db.all(query, [], (err, notes) => {
+    if (err) return res.status(500).json({ error: "Erreur serveur" });
 
-    const cleanContent = sanitizeHtml(content, {
-        allowedTags: [],
-        allowedAttributes: {}
-    });
-
-    const query = `INSERT INTO notes (content, authorId) VALUES (?, ?)`;
-
-    db.run(query, [cleanContent, req.user.id], function(err) {
-
-        if (err) {
-            return res.status(500).json({ error: "Erreur serveur" });
-        }
-
-        res.json({
-            message: "Note ajoutée",
-            id: this.lastID
-        });
-
-    });
-
+    res.json(notes);
+  });
 });
+
+app.get('/api/users', authMiddleware, isAdmin, (req, res) => {
+    const query = "SELECT id, email, role FROM users";
+
+    db.all(query, [], (err, users) => {
+        if (err) return res.status(500).json({ error: "Erreur serveur" });
+
+        res.json(users);
+    });
+});
+
+app.delete('/api/notes/:id', authMiddleware, (req, res) => {
+       const noteId = req.params.id;
+       const userId = req.user.id;
+       const sql = `DELETE FROM notes WHERE id = ? AND user_id = ?`;
+         db.run(sql, [noteId, userId], function(err) {
+              if (err) {
+                console.error("Erreur lors de la suppression:", err.message);
+                return res.status(500).json({ message: "Erreur serveur lors de la suppression de la note" });
+            }
+            if (this.changes === 0) {
+                return res.status(403).json ({message: "Suppression refusée : note introuvable ou non autorisée." });
+            }
+            return res.status(200).json({message: "Note supprimée avec succès."});
+        });
+    });
+
+app.post("/api/notes", authMiddleware, (req, res) => {
+  const { content } = req.body;
+  const userId = req.user.id;
+
+  if (!content) {
+    return res.status(400).json({ error: "Le contenu de la note est obligatoire" });
+  }
+  const query = "INSERT INTO notes (content, user_id) VALUES (?, ?)";
+
+  db.run(query, [content, userId], function (err) {
+    if (err) {
+      console.error("Erreur lors de l'ajout de la note :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    res.status(201).json({
+      message: "Note ajoutée avec succès",
+      note: {
+        id: this.lastID,
+        content: content,
+        user_id: userId
+      }
+    });
+  });
+});
+
+
+
 
 
 const PORT = 3000;
