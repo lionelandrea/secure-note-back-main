@@ -86,6 +86,11 @@ function Dashboard() {
         <div>
             
             <button onClick={handleDeleteAccount} style={{ marginLeft: '10px', color: 'red' }}>Supprimer mon compte</button>
+            {user.role === 'admin' && (
+                <button onClick={() => navigate('/admin')} style={{ marginLeft: '10px' }}>
+                    Page ADMIN
+                </button>
+            )}
             <button onClick={handleLogout}>Déconnexion</button>
             <h2>Tableau de bord de {user.email || 'Anonyme'}</h2>
 

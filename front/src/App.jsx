@@ -3,6 +3,10 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Register from './pages/Register';
 
+//mission 4: import du composant AdminDashboard
+
+import AdminDashboard from './pages/AdminDashboard';
+
 function App() {
   return (
     <Router>
@@ -13,6 +17,10 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/register" element={<Register />} />
+
+//mission 4: ajout de la route pour le dashboard admin
+
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </div>
     </Router>
