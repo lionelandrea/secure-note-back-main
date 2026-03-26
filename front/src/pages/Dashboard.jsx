@@ -52,6 +52,30 @@ function Dashboard() {
             alert("Erreur lors de la suppression");
         }
     };
+    
+    const handleDeleteAccount = async () => {
+        const confirmation = window.confirm("Voulez-vous vraiment supprimer votre compte et toutes vos notes ?");
+
+        if (!confirmation) {
+            return;
+        }
+
+        try {
+            await axios.delete('http://localhost:3000/api/users/me', {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+
+            alert('Compte supprimé avec succès');
+            navigate('/login');
+        } catch (err) {
+            alert("Erreur lors de la suppression du compte");
+        }
+    };
 
     const handleLogout = () => {
         localStorage.clear();
@@ -60,6 +84,8 @@ function Dashboard() {
 
     return (
         <div>
+            
+            <button onClick={handleDeleteAccount} style={{ marginLeft: '10px', color: 'red' }}>Supprimer mon compte</button>
             <button onClick={handleLogout}>Déconnexion</button>
             <h2>Tableau de bord de {user.email || 'Anonyme'}</h2>
 
