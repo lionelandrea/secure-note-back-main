@@ -1,11 +1,27 @@
 const isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    return next();
-  }
+const fs = require('fs');
 
-  return res.status(403).json({
-    error: "Accès interdit "
-  });
+function logSecurityEvent(message) {
+
+    const log = `${new Date().toISOString()} - ${message}\n`;
+
+    fs.appendFile('security.log', log, () => {});
+
+}
+
+
+
+
+    if (!req.user || req.user.role !== "admin") {
+
+        logSecurityEvent(`Tentative admin refusée pour user ${req.user?.email}`);
+
+        return res.status(403).json({
+            error: "Accès refusé"
+        });
+    }
+
+    next();
 };
 
 module.exports = isAdmin;
